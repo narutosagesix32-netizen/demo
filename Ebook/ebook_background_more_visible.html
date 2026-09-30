@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Great Archive - Interactive 3D Digital Bookshelf</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=MedievalSharp&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Share+Tech+Mono&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-dark: #0a080d;
+            --shelf-wood: #1e110a;
+            --gold-glow: rgba(212, 175, 55, 0.3);
+            --cyan-glow: rgba(0, 240, 255, 0.3);
+            --crimson-glow: rgba(180, 20, 20, 0.3);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(circle at 50% 20%, #2a2032 0%, #120d18 55%, #08050a 100%),
+                radial-gradient(circle at 20% 80%, rgba(212, 175, 55, 0.08) 0%, transparent 55%),
+                radial-gradient(circle at 80% 80%, rgba(0, 240, 255, 0.08) 0%, transparent 55%);
+            color: #e2e8f0;
+            font-family: 'Playfair Display', serif;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* Ambient Lighting Particles Container */
+        #particles-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* 3D Bookshelf Structure */
+        .shelf-container {
+            perspective: 1200px;
+            perspective-origin: 50% 40%;
+        }
+
+        .shelf-wood {
+            background: linear-gradient(180deg, #2a1810 0%, #180d08 60%, #0d0604 100%);
+            box-shadow: 
+                0 20px 40px rgba(0,0,0,0.9),
+                inset 0 2px 4px rgba(255,255,255,0.1),
+                inset 0 -10px 20px rgba(0,0,0,0.8);
+            border-bottom: 6px solid #0a0402;
+            transform-style: preserve-3d;
+        }
+
+        .shelf-backdrop {
+            background: radial-gradient(ellipse at center, rgba(58, 39, 31, 0.82) 0%, rgba(18, 11, 12, 0.94) 100%);
+            box-shadow: inset 0 0 55px rgba(0,0,0,0.72);
+        }
+
+        /* Shelf Book Wrapper 3D Dynamics */
+        .book-shelf-item {
+            transform-style: preserve-3d;
+            transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+            cursor: pointer;
+        }
+
+        .book-shelf-item:hover {
+            transform: translateZ(35px) translateY(-15px) rotateY(-8deg);
+        }
+
+        /* --- BOOK 1: ANCIENT SPELLBOOK (GRIMOIRE) --- */
+        .cover-grimoire {
+            background: radial-gradient(circle, #62351f 0%, #2d1208 100%);
+            border: 8px solid #140501;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 10px 25px rgba(0,0,0,0.8);
+            position: relative;
+        }
+        .cover-grimoire::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border: 2px dashed #8a6428;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* --- BOOK 2: SCI-FI CYBERNETIC CODEX --- */
+        .cover-scifi {
+            background: linear-gradient(135deg, #17344d 0%, #0a1728 100%);
+            border: 2px solid #00f0ff;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.3), inset 0 0 20px rgba(0, 240, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .cover-scifi-circuit {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                radial-gradient(#00f0ff 1px, transparent 0),
+                linear-gradient(to right, rgba(0,240,255,0.08) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0,240,255,0.08) 1px, transparent 1px);
+            background-size: 16px 16px, 16px 16px, 16px 16px;
+            opacity: 0.5;
+        }
+
+        /* --- BOOK 3: ROYAL CHRONICLES --- */
+        .cover-royal {
+            background: linear-gradient(135deg, #681d2b 0%, #310b12 100%);
+            border: 6px solid #d4af37;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 25px rgba(212,175,55,0.25);
+            position: relative;
+        }
+        .gold-pattern {
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            outline: 2px solid rgba(212, 175, 55, 0.2);
+            outline-offset: -6px;
+        }
+
+        /* --- 3D BOOK MODAL & PAGE FLIP ENGINE --- */
+        .modal-scene {
+            perspective: 2200px;
+            perspective-origin: 50% 45%;
+        }
+
+        .book-3d-viewport {
+            transform-style: preserve-3d;
+            transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+            position: relative;
+            width: 760px;
+            height: 520px;
+        }
+
+        @media (max-width: 820px) {
+            .book-3d-viewport {
+                width: 90vw;
+                height: 60vh;
+            }
+        }
+
+        .book-page-3d {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transform-origin: left center;
+            transition: transform 0.9s cubic-bezier(0.645, 0.045, 0.355, 1);
+            border-radius: 4px 12px 12px 4px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        }
+
+        .page-face {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            padding: 24px;
+            overflow-y: auto;
+            border-radius: 4px 12px 12px 4px;
+        }
+
+        .page-face-back {
+            transform: rotateY(180deg);
+            border-radius: 12px 4px 4px 12px;
+        }
+
+        /* Book Themes Page Styling */
+        /* Grimoire Paper */
+        .paper-grimoire {
+            background: linear-gradient(to right, #ead9ba 0%, #fff2d8 10%, #fff6df 90%, #e8d5b5 100%);
+            color: #2a1508;
+            font-family: 'MedievalSharp', cursive;
+            border: 1px solid rgba(139, 90, 43, 0.3);
+            box-shadow: inset 0 0 30px rgba(100, 70, 30, 0.2);
+        }
+        
+        /* Sci-Fi HUD Screen Paper */
+        .paper-scifi {
+            background: linear-gradient(to right, #102b42 0%, #163b58 50%, #102b42 100%);
+            color: #64ffda;
+            font-family: 'Share Tech Mono', monospace;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            box-shadow: inset 0 0 25px rgba(0, 240, 255, 0.15);
+        }
+
+        /* Royal Ivory Parchment Paper */
+        .paper-royal {
+            background: linear-gradient(to right, #ead8b9 0%, #fff7e8 10%, #fffaf0 90%, #e8d3b1 100%);
+            color: #1a0f0a;
+            font-family: 'Playfair Display', serif;
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            box-shadow: inset 0 0 20px rgba(180, 140, 60, 0.15);
+        }
+
+        /* Drop Cap Styling */
+        .drop-cap-grimoire {
+            float: left;
+            font-family: 'UnifrakturMaguntia', cursive;
+            font-size: 3.5rem;
+            line-height: 0.8;
+            padding: 2px 8px 0 0;
+            color: #8b0000;
+        }
+
+        .drop-cap-royal {
+            float: left;
+            font-family: 'Cinzel', serif;
+            font-size: 3.2rem;
+            line-height: 0.8;
+            padding: 2px 8px 0 0;
+            color: #d4af37;
+            font-weight: 800;
+        }
+
+        /* Custom Scrollbar for inner page text */
+        .page-face::-webkit-scrollbar {
+            width: 4px;
+        }
+        .page-face::-webkit-scrollbar-thumb {
+            background: rgba(150, 110, 50, 0.4);
+            border-radius: 4px;
+        }
+
+        /* Corner Fold Hint */
+        .corner-fold {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 0 0 28px 28px;
+            border-color: transparent transparent rgba(0,0,0,0.2) transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .book-page-3d:hover .corner-fold {
+            border-width: 0 0 40px 40px;
+            border-color: transparent transparent #d4af37 transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center relative">
+
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- Top Navigation Header -->
+    <header class="w-full max-w-7xl px-6 py-6 flex flex-col sm:flex-row justify-between items-center z-20 gap-4">
+        <div class="flex items-center gap-3">
+           
+                <img src="ust.png" alt="Trulli" width="200" height="150">
+				 <img src="cics.png" alt="Trulli" width="150" height="50">
+          
+            <div>
+                <h1 class="text-2xl font-bold tracking-widest text-amber-100 font-serif" style="font-family: 'Cinzel', serif;">University Of Santo Tomas CICS</h1>
+                <p class="text-xs text-amber-400/60 font-mono">Interactive 3D E-Book Collection</p>
+            </div>
+        </div>
+
+        <!-- Global Audio & Light Controls -->
+        <div class="flex items-center gap-3 bg-black/60 border border-amber-500/30 px-4 py-2 rounded-full backdrop-blur-md text-sm text-amber-200">
+            <button id="btn-sound-toggle" class="hover:text-amber-400 transition-colors flex items-center gap-2 px-2">
+                <i id="sound-icon" class="fa-solid fa-volume-high text-amber-400"></i>
+                <span class="text-xs font-mono">AUDIO</span>
+            </button>
+            <span class="text-amber-900">|</span>
+            <div class="text-xs font-mono text-amber-400/80 flex items-center gap-1">
+                <i class="fa-solid fa-hand-pointer text-amber-400"></i>
+                <span>CLICK BOOK TO READ</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN BOOKSHELF VIEW -->
+    <main id="bookshelf-view" class="w-full max-w-6xl px-4 py-8 flex-1 flex flex-col justify-center items-center z-20 relative shelf-container">
+        
+        <div class="w-full max-w-4xl relative">
+            <!-- Shelf Wall Backdrop -->
+            <div class="shelf-backdrop rounded-t-2xl p-8 pt-12 border-t border-x border-amber-900/30 flex justify-around items-end min-h-[420px] relative overflow-hidden">
+                
+                <!-- Ambient Backdrop Shadow & Decor -->
+                <div class="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/80 to-transparent"></div>
+
+                <!-- BOOK 1: ANCIENT SPELLBOOK (GRIMOIRE) -->
+                <div onclick="app.openBook(0)" class="book-shelf-item flex flex-col items-center group">
+                    <div class="w-36 h-52 sm:w-44 sm:h-64 cover-grimoire rounded-r-md flex flex-col justify-between p-4 text-center relative transform group-hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]">
+                        <!-- Gold Corners -->
+                        <div class="absolute top-1 left-1 text-amber-600/70 text-xs"><i class="fa-solid fa-crown"></i></div>
+                        <div class="absolute top-1 right-1 text-amber-600/70 text-xs"><i class="fa-solid fa-crown"></i></div>
+                        
+                        <div class="my-auto space-y-2">
+                            <i class="fa-solid fa-dragon text-3xl text-amber-500 filter drop-shadow"></i>
+                            <h3 class="text-amber-200 text-sm font-bold tracking-wider font-serif uppercase" style="font-family: 'MedievalSharp';">Catholic Book</h3>
+                            <div class="w-8 h-0.5 bg-amber-600/50 mx-auto"></div>
+                        </div>
+
+                        <div class="text-[10px] text-amber-500/70 font-mono">ANNO 1584</div>
+                    </div>
+                    <!-- Book Label -->
+                    <div class="mt-4 text-center">
+                        <span class="text-xs font-serif text-amber-300/80 group-hover:text-amber-200 transition-colors">Catholic Book</span>
+                        <div class="text-[10px] text-amber-500/50">By Carl</div>
+                    </div>
+                </div>
+
+                <!-- BOOK 2: SCI-FI CYBERNETIC CODEX -->
+                <div onclick="app.openBook(1)" class="book-shelf-item flex flex-col items-center group">
+                    <div class="w-36 h-52 sm:w-44 sm:h-64 cover-scifi rounded-r-md flex flex-col justify-between p-4 text-center relative group-hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]">
+                        <div class="cover-scifi-circuit"></div>
+                        
+                        <div class="my-auto space-y-2 z-10">
+                            <i class="fa-solid fa-microchip text-3xl text-cyan-400 animate-pulse"></i>
+                            <h3 class="text-cyan-200 text-sm font-bold tracking-widest font-mono uppercase" style="font-family: 'Orbitron';">CODEX v2.0</h3>
+                            <div class="w-10 h-0.5 bg-cyan-500/50 mx-auto"></div>
+                        </div>
+
+                        <div class="text-[10px] text-cyan-400/80 font-mono z-10">SYSTEM_MANUAL</div>
+                    </div>
+                    <!-- Book Label -->
+                    <div class="mt-4 text-center">
+                        <span class="text-xs font-mono text-cyan-300/80 group-hover:text-cyan-200 transition-colors">Hacking Manual</span>
+                        <div class="text-[10px] text-cyan-500/50">By Carl</div>
+                    </div>
+                </div>
+
+                <!-- BOOK 3: ROYAL CHRONICLES -->
+                <div onclick="app.openBook(2)" class="book-shelf-item flex flex-col items-center group">
+                    <div class="w-36 h-52 sm:w-44 sm:h-64 cover-royal gold-pattern rounded-r-md flex flex-col justify-between p-4 text-center relative group-hover:shadow-[0_0_30px_rgba(212,175,55,0.5)]">
+                        <div class="my-auto space-y-2">
+                            <i class="fa-solid fa-chess-king text-3xl text-amber-400 filter drop-shadow"></i>
+                            <h3 class="text-amber-100 text-sm font-extrabold tracking-wider font-serif uppercase" style="font-family: 'Cinzel';">Demo</h3>
+                            <div class="w-10 h-0.5 bg-amber-400/60 mx-auto"></div>
+                        </div>
+
+                        <div class="text-[10px] text-amber-300/80 font-serif italic">Demo</div>
+                    </div>
+                    <!-- Book Label -->
+                    <div class="mt-4 text-center">
+                        <span class="text-xs font-serif text-amber-300/80 group-hover:text-amber-200 transition-colors">Demo</span>
+                        <div class="text-[10px] text-amber-500/50">By Carl</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Wooden Shelf Surface -->
+          <!--   <div class="shelf-wood h-12 w-full rounded-b-lg flex items-center justify-between px-8 text-amber-900/50 text-xs font-mono">
+                <span>ATHENAEUM_RACK_01</span>
+                <span>VOLUMES: 03</span>
+            </div> -->
+        </div>
+
+    </main>
+
+    <!-- 3D BOOK MODAL VIEW -->
+    <div id="book-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col justify-between items-center p-4 sm:p-8 opacity-0 pointer-events-none transition-opacity duration-500 modal-scene">
+        
+        <!-- Modal Top Toolbar -->
+        <div class="w-full max-w-5xl flex justify-between items-center z-50">
+            <div class="flex items-center gap-3">
+                <span id="active-book-badge" class="px-3 py-1 rounded-full text-xs font-mono border border-amber-500/40 bg-amber-950/60 text-amber-300">
+                    Grimoire Arcana
+                </span>
+            </div>
+
+            <button onclick="app.closeBook()" class="px-4 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 rounded-full text-rose-200 text-xs font-mono transition-all flex items-center gap-2 shadow-lg hover:scale-105">
+                <i class="fa-solid fa-xmark text-sm"></i>
+                <span>PUT BACK ON SHELF</span>
+            </button>
+        </div>
+
+        <!-- 3D Book Viewport -->
+        <div class="my-auto relative">
+            <div id="book-3d-viewport" class="book-3d-viewport">
+                <!-- Pages injected dynamically via JavaScript -->
+            </div>
+        </div>
+
+        <!-- Modal Bottom Navigation Controls -->
+        <div class="w-full max-w-md bg-black/80 border border-amber-500/30 rounded-full px-6 py-3 flex justify-between items-center z-50 backdrop-blur-md shadow-2xl">
+            <button id="btn-prev-page" onclick="app.prevPage()" class="p-2 text-amber-300 hover:text-amber-100 disabled:opacity-30 disabled:hover:text-amber-300 transition-colors">
+                <i class="fa-solid fa-arrow-left text-lg"></i>
+            </button>
+
+            <span id="modal-page-indicator" class="text-xs font-mono text-amber-200 font-bold tracking-widest">
+                PAGE 1 / 4
+            </span>
+
+            <button id="btn-next-page" onclick="app.nextPage()" class="p-2 text-amber-300 hover:text-amber-100 disabled:opacity-30 disabled:hover:text-amber-300 transition-colors">
+                <i class="fa-solid fa-arrow-right text-lg"></i>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full py-4 text-center text-xs text-amber-500/40 font-mono z-20">
+        Created by Carl • Interactive E-Book
+    </footer>
+
+    <script>
+        // --- 1. DATA DEFINITIONS FOR 3 BOOKS ---
+        const BOOKS_DATA = [
+            // BOOK 1: ANCIENT SPELLBOOK
+            {
+                id: "demo",
+                title: "Demo",
+                subtitle: "demo",
+                themeClass: "paper-grimoire",
+                pages: [
+                    {
+                        left: {
+                            header: "Demo",
+                            content: `
+                               <!--  <div class="text-center my-4">
+                                    <i class="fa-solid fa-hat-wizard text-4xl text-amber-900 my-2"></i>
+                                    <h3 class="text-lg font-bold text-amber-950 font-serif">College Of CICS</h3>
+                                    <p class="text-xs italic text-amber-800">Anno Domini 1584 • Prague</p>
+                                </div>
+                                <p class="text-xs leading-relaxed my-3">
+                                    <span class="drop-cap-grimoire">I</span>n the quiet shadows of the old alchemy tower, Master Aethelgard compiled these forbidden truths. Observe the harmony of the primal forces before invoking higher incantations.
+                                </p>
+                                <div class="border-t border-b border-amber-900/30 py-2 my-2 text-center text-xs">
+                                    <span class="font-bold text-amber-900">Ignis • Aqua • Terra • Aer</span>
+                                </div> -->
+                            `
+                        },
+                        right: {
+                            header: "Demo",
+                            content: `
+                                <h3 class="text-base font-bold text-amber-950 mb-2">College Of CICS</h3>
+                               <!--  <p class="text-xs leading-relaxed">
+                                    <span class="drop-cap-grimoire">S</span>peak softly into the glass vial filled with morning dew and crushed quartz:
+                                </p>
+                                <div class="bg-amber-900/10 p-3 rounded my-3 border-l-2 border-amber-800 text-xs italic font-serif">
+                                    "O Celestial Ether, ignite the sleeping spark within this vessel."
+                                </div>
+                                <div class="text-center my-4">
+                                    <button onclick="app.playMagicSound()" class="px-4 py-2 bg-amber-900/20 hover:bg-amber-900/40 border border-amber-800/40 rounded text-xs font-bold text-amber-950 transition-all shadow">
+                                        ✨ Cast Spell Effect
+                                    </button>
+                                </div> -->
+                            `
+                        }
+                    },
+                    {
+                        left: {
+                            header: "Demo",
+                            content: `
+                              <!--   <h3 class="text-sm font-bold text-amber-950 text-center mb-2">Sigils of Binding</h3>
+                                <div class="flex justify-center items-center my-4">
+                                    <div class="w-28 h-28 border-2 border-dashed border-amber-900/60 rounded-full flex items-center justify-center relative animate-spin" style="animation-duration: 40s;">
+                                        <i class="fa-solid fa-spaghetti-monster-flying text-3xl text-amber-900"></i>
+                                    </div>
+                                </div>
+                                <p class="text-[11px] text-center italic text-amber-900/80">
+                                    Draw this celestial seal upon parchment with quicksilver ink.
+                                </p> -->
+                            `
+                        },
+                        right: {
+                            header: "Demo",
+                            content: `
+                              <!--   <div class="my-auto text-center space-y-4">
+                                    <i class="fa-solid fa-scroll text-4xl text-amber-900/60"></i>
+                                    <h3 class="text-base font-bold text-amber-950">The Master's Vow</h3>
+                                    <p class="text-xs italic text-amber-900/80">"Whosoever unlocks these pages shall keep the sacred balance unbroken."</p>
+                                    <div class="pt-4 text-xs font-serif text-amber-800">~ Aethelgard of Prague</div>
+                                </div> -->
+                            `
+                        }
+                    }
+                ]
+            },
+
+            // BOOK 2: SCI-FI CYBERNETIC CODEX
+            {
+                id: "scifi",
+                title: "Demo",
+                subtitle: "Sci-Fi Cybernetic Manual",
+                themeClass: "paper-scifi",
+                pages: [
+                    {
+                        left: {
+                            header: "Demo",
+                            content: `
+                               <!--  <div class="text-center my-2">
+                                    <i class="fa-solid fa-brain text-3xl text-cyan-400 my-2"></i>
+                                    <h3 class="text-sm font-bold text-cyan-300 font-mono tracking-wider">NEURAL LINK INTERFACE</h3>
+                                    <p class="text-[10px] text-cyan-500/80">FIRMWARE REVISION 4.9.1</p>
+                                </div>
+                                <div class="bg-cyan-950/40 p-2 rounded border border-cyan-500/30 text-[11px] space-y-1 font-mono my-3">
+                                    <div>> SYNAPSE_RATE: 120 THz</div>
+                                    <div>> CORTICAL_BUFFER: OK</div>
+                                    <div>> ENCRYPTION: QUANTUM_256</div>
+                                </div>
+                                <p class="text-xs leading-relaxed text-cyan-200/80">
+                                    Initialize cybernetic link before accessing core memory banks. Unprotected connections may cause neural overload.
+                                </p> -->
+                            `
+                        },
+                        right: {
+                            header: "Demo",
+                            content: `
+                                <!-- <h3 class="text-xs font-bold text-cyan-300 font-mono mb-2">SYSTEM SPECS</h3>
+                                <div class="space-y-3 text-xs font-mono">
+                                    <div>
+                                        <div class="flex justify-between text-[10px]"><span>CPU CORE OVERCLOCK</span><span>98%</span></div>
+                                        <div class="w-full bg-cyan-950 h-1.5 rounded overflow-hidden">
+                                            <div class="bg-cyan-400 h-full w-[98%]"></div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-[10px]"><span>MEMORY ALLOCATION</span><span>64%</span></div>
+                                        <div class="w-full bg-cyan-950 h-1.5 rounded overflow-hidden">
+                                            <div class="bg-cyan-400 h-full w-[64%]"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-6 text-center">
+                                    <button onclick="app.playSciFiSound()" class="px-3 py-2 bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 rounded text-xs font-mono text-cyan-200 transition-all shadow-glow">
+                                        ⚡ Execute Diagnostic Sync
+                                    </button>
+                                </div> -->
+                            `
+                        }
+                    },
+                    {
+                        left: {
+                            header: "Demo",
+                            content: `
+                               <!--  <h3 class="text-xs font-bold text-cyan-300 font-mono text-center mb-2">QUANTUM CORE MATRIX</h3>
+                                <div class="border border-cyan-500/30 bg-black/40 p-3 rounded flex justify-center items-center my-3">
+                                    <i class="fa-solid fa-atom text-5xl text-cyan-400 animate-spin" style="animation-duration: 10s;"></i>
+                                </div>
+                                <p class="text-[10px] text-center text-cyan-400/70 font-mono">
+                                    FIG 4.2 - Sub-atomic plasma restraint mesh.
+                                </p> -->
+                            `
+                        },
+                        right: {
+                            header: "Demo",
+                            content: `
+                               <!--  <div class="my-auto text-center space-y-4 font-mono">
+                                    <i class="fa-solid fa-terminal text-3xl text-cyan-400"></i>
+                                    <h3 class="text-xs font-bold text-cyan-200">LOG_OFF COMPLETE</h3>
+                                    <p class="text-[10px] text-cyan-400/80">"Data is the immortal blood of the cybernetic age."</p>
+                                    <div class="text-[9px] text-cyan-600">ID: #882-ALPHA-GRID</div>
+                                </div> -->
+                            `
+                        }
+                    }
+                ]
+            },
+
+            // BOOK 3: ROYAL CHRONICLES
+            {
+                id: "royal",
+                title: "Demo",
+                subtitle: "Classic Leather Tome",
+                themeClass: "paper-royal",
+                pages: [
+                    {
+                        left: {
+                            header: "Demo",
+                            content: `
+                               <!--  <div class="text-center my-3">
+                                    <i class="fa-solid fa-crown text-3xl text-amber-600 my-1"></i>
+                                    <h3 class="text-base font-bold text-amber-950 font-serif">Anno Regni XLL</h3>
+                                    <p class="text-xs italic text-amber-800">The Reign of King Eldenwood</p>
+                                </div>
+                                <p class="text-xs leading-relaxed my-2">
+                                    <span class="drop-cap-royal">I</span>n the year of our Lord 1422, the Great Kingdom united under one banner. Let it be recorded for eternity how peace was forged across the realm.
+                                </p> -->
+                            `
+                        },
+                        right: {
+                            header: "Demo",
+                            content: `
+                               <!--  <h3 class="text-sm font-bold text-amber-950 mb-2">Edict of the Realm</h3>
+                                <p class="text-xs leading-relaxed">
+                                    <span class="drop-cap-royal">B</span>e it known to all nobles, lords, and citizens that the royal harvest festival shall commence upon the autumn solstice.
+                                </p>
+                                <div class="my-4 text-center">
+                                    <button onclick="app.playFanfareSound()" class="px-4 py-2 bg-amber-800/20 hover:bg-amber-800/40 border border-amber-600/50 rounded text-xs font-bold text-amber-950 transition-all shadow">
+                                        🎺 Sound Royal Trumpet
+                                    </button>
+                                </div> -->
+                            `
+                        }
+                    },
+                    {
+                        left: {
+                            header: "Demo",
+                            content: `
+                               <!--  <h3 class="text-xs font-bold text-amber-950 text-center mb-3">House Crest</h3>
+                                <div class="text-center my-3">
+                                    <i class="fa-solid fa-shield-cat text-5xl text-amber-800"></i>
+                                </div>
+                                <p class="text-[11px] text-center italic text-amber-900">
+                                    "Honor through Courage, Strength through Unity."
+                                </p> -->
+                            `
+                        },
+                        right: {
+                            header: "Demo",
+                            content: `
+                                <!-- <div class="my-auto text-center space-y-3">
+                                    <i class="fa-solid fa-feather-pointed text-3xl text-amber-800"></i>
+                                    <h3 class="text-sm font-bold text-amber-950">Sealed by Imperial Order</h3>
+                                    <p class="text-xs italic text-amber-900">Keeper of the Royal Seals</p>
+                                </div> -->
+                            `
+                        }
+                    }
+                ]
+            }
+        ];
+
+        // --- 2. WEB AUDIO API SYNTHESIZER ---
+        class WebAudioFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            // Realistic Paper Page Flip Sound Effect
+            playPageFlip() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+
+                const bufferSize = this.ctx.sampleRate * 0.3;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(900, now);
+                filter.frequency.exponentialRampToValueAtTime(300, now + 0.28);
+                filter.Q.value = 2;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start(now);
+                noise.stop(now + 0.3);
+            }
+
+            // Heavy Book Pickup / Slam Sound
+            playBookPickup() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(35, now + 0.25);
+
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            // Magical Chime Sound
+            playMagicChime() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.frequency.setValueAtTime(f, now + i * 0.05);
+                    gain.gain.setValueAtTime(0.1, now + i * 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + i * 0.05);
+                    osc.stop(now + i * 0.05 + 0.3);
+                });
+            }
+
+            // Sci-Fi Synth Sound
+            playSciFiBeep() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+        }
+
+        // --- 3. MAIN APPLICATION ENGINE ---
+        class BookshelfApp {
+            constructor() {
+                this.audio = new WebAudioFX();
+                this.currentBookIndex = 0;
+                this.currentSpread = 0;
+                this.totalSpreads = 0;
+
+                // DOM Elements
+                this.bookModal = document.getElementById('book-modal');
+                this.viewport = document.getElementById('book-3d-viewport');
+                this.badge = document.getElementById('active-book-badge');
+                this.pageIndicator = document.getElementById('modal-page-indicator');
+                this.btnPrev = document.getElementById('btn-prev-page');
+                this.btnNext = document.getElementById('btn-next-page');
+
+                this.initParticles();
+                this.attachListeners();
+            }
+
+            initParticles() {
+                const canvas = document.getElementById('particles-canvas');
+                const ctx = canvas.getContext('2d');
+                let width = canvas.width = window.innerWidth;
+                let height = canvas.height = window.innerHeight;
+
+                window.addEventListener('resize', () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                });
+
+                const particles = Array.from({ length: 40 }, () => ({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    radius: Math.random() * 1.5 + 0.5,
+                    alpha: Math.random() * 0.5 + 0.2,
+                    speedY: -Math.random() * 0.3 - 0.1
+                }));
+
+                function render() {
+                    ctx.clearRect(0, 0, width, height);
+                    particles.forEach(p => {
+                        p.y += p.speedY;
+                        if (p.y < 0) p.y = height;
+
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(212, 175, 55, ${p.alpha})`;
+                        ctx.fill();
+                    });
+                    requestAnimationFrame(render);
+                }
+                render();
+            }
+
+            attachListeners() {
+                // Sound Toggle
+                document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+                    this.audio.enabled = !this.audio.enabled;
+                    document.getElementById('sound-icon').className = this.audio.enabled 
+                        ? "fa-solid fa-volume-high text-amber-400" 
+                        : "fa-solid fa-volume-xmark text-rose-400";
+                });
+
+                // Keyboard controls
+                window.addEventListener('keydown', (e) => {
+                    if (this.bookModal.classList.contains('opacity-0')) return;
+                    if (e.key === 'ArrowRight') this.nextPage();
+                    if (e.key === 'ArrowLeft') this.prevPage();
+                    if (e.key === 'Escape') this.closeBook();
+                });
+            }
+
+            openBook(index) {
+                this.currentBookIndex = index;
+                this.currentSpread = 0;
+                const book = BOOKS_DATA[index];
+
+                this.audio.playBookPickup();
+                this.badge.textContent = book.title;
+
+                // Render pages for this book
+                this.renderBookPages(book);
+
+                // Show modal
+                this.bookModal.classList.remove('opacity-0', 'pointer-events-none');
+                
+                this.updateUI();
+            }
+
+            renderBookPages(book) {
+                this.viewport.innerHTML = '';
+                this.totalSpreads = book.pages.length;
+
+                book.pages.forEach((spread, idx) => {
+                    const spreadNum = idx + 1;
+                    const pageEl = document.createElement('div');
+                    pageEl.className = `book-page-3d ${book.themeClass}`;
+                    pageEl.id = `page-spread-${spreadNum}`;
+                    pageEl.style.zIndex = `${10 - spreadNum}`;
+
+                    pageEl.innerHTML = `
+                        <!-- Front Face (Right Page) -->
+                        <div class="page-face flex flex-col justify-between">
+                            <div class="border-b border-current/20 pb-1 text-[10px] uppercase font-mono tracking-widest flex justify-between">
+                                <span>${spread.right.header}</span>
+                                <span>P. ${spreadNum * 2}</span>
+                            </div>
+                            <div class="my-auto">
+                                ${spread.right.content}
+                            </div>
+                            <div class="corner-fold" title="Flip Page"></div>
+                        </div>
+
+                        <!-- Back Face (Left Page) -->
+                        <div class="page-face page-face-back flex flex-col justify-between">
+                            <div class="border-b border-current/20 pb-1 text-[10px] uppercase font-mono tracking-widest flex justify-between">
+                                <span>P. ${(spreadNum * 2) - 1}</span>
+                                <span>${spread.left.header}</span>
+                            </div>
+                            <div class="my-auto">
+                                ${spread.left.content}
+                            </div>
+                        </div>
+                    `;
+
+                    pageEl.addEventListener('click', (e) => {
+                        if (e.target.closest('button')) return;
+                        if (this.currentSpread < spreadNum) {
+                            this.nextPage();
+                        } else {
+                            this.prevPage();
+                        }
+                    });
+
+                    this.viewport.appendChild(pageEl);
+                });
+            }
+
+            nextPage() {
+                if (this.currentSpread < this.totalSpreads) {
+                    this.currentSpread++;
+                    const pageEl = document.getElementById(`page-spread-${this.currentSpread}`);
+                    if (pageEl) {
+                        pageEl.style.transform = "rotateY(-180deg)";
+                        this.audio.playPageFlip();
+                    }
+                    this.updateUI();
+                }
+            }
+
+            prevPage() {
+                if (this.currentSpread > 0) {
+                    const pageEl = document.getElementById(`page-spread-${this.currentSpread}`);
+                    if (pageEl) {
+                        pageEl.style.transform = "rotateY(0deg)";
+                        this.audio.playPageFlip();
+                    }
+                    this.currentSpread--;
+                    this.updateUI();
+                }
+            }
+
+            closeBook() {
+                this.audio.playBookPickup();
+                
+                // Unflip pages
+                for (let i = this.totalSpreads; i >= 1; i--) {
+                    const el = document.getElementById(`page-spread-${i}`);
+                    if (el) el.style.transform = "rotateY(0deg)";
+                }
+
+                setTimeout(() => {
+                    this.bookModal.classList.add('opacity-0', 'pointer-events-none');
+                }, 300);
+            }
+
+            updateUI() {
+                const totalPages = this.totalSpreads * 2;
+                const currentPage = this.currentSpread * 2;
+                this.pageIndicator.textContent = `PAGE ${currentPage} / ${totalPages}`;
+
+                this.btnPrev.disabled = this.currentSpread === 0;
+                this.btnNext.disabled = this.currentSpread === this.totalSpreads;
+            }
+
+            playMagicSound() {
+                this.audio.playMagicChime();
+            }
+
+            playSciFiSound() {
+                this.audio.playSciFiBeep();
+            }
+
+            playFanfareSound() {
+                this.audio.playMagicChime();
+            }
+        }
+
+        // Launch App on Window Load
+        window.onload = () => {
+            window.app = new BookshelfApp();
+        };
+    </script>
+</body>
+</html>

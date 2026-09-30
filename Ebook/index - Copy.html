@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UST CICS - Interactive 3D Digital Bookshelf</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=MedievalSharp&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Share+Tech+Mono&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --shelf-wood: #1e110a;
+            --gold-glow: rgba(212, 175, 55, 0.3);
+            --cyan-glow: rgba(0, 240, 255, 0.3);
+            --crimson-glow: rgba(180, 20, 20, 0.3);
+        }
+
+        body {
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
+            color: #e2e8f0;
+            font-family: 'Playfair Display', serif;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        #particles-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .shelf-container {
+            perspective: 1200px;
+            perspective-origin: 50% 40%;
+        }
+
+        .book-shelf-item {
+            transform-style: preserve-3d;
+            transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+            cursor: pointer;
+        }
+
+        .book-shelf-item:hover {
+            transform: translateZ(35px) translateY(-15px) rotateY(-8deg);
+        }
+
+        .cover-grimoire {
+            background: radial-gradient(circle, #3d1c10 0%, #1d0903 100%);
+            border: 8px solid #140501;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 10px 25px rgba(0,0,0,0.8);
+            position: relative;
+        }
+        .cover-grimoire::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border: 2px dashed #8a6428;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .cover-scifi {
+            background: linear-gradient(135deg, #0d1b2a 0%, #040814 100%);
+            border: 2px solid #00f0ff;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.3), inset 0 0 20px rgba(0, 240, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .cover-scifi-circuit {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                radial-gradient(#00f0ff 1px, transparent 0),
+                linear-gradient(to right, rgba(0,240,255,0.08) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0,240,255,0.08) 1px, transparent 1px);
+            background-size: 16px 16px, 16px 16px, 16px 16px;
+            opacity: 0.5;
+        }
+
+        .cover-royal {
+            background: linear-gradient(135deg, #4a0e17 0%, #1f0407 100%);
+            border: 6px solid #d4af37;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 25px rgba(212,175,55,0.25);
+            position: relative;
+        }
+        .gold-pattern {
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            outline: 2px solid rgba(212, 175, 55, 0.2);
+            outline-offset: -6px;
+        }
+
+        /* --- 3D BOOK ENGINE --- */
+        .modal-scene {
+            perspective: 2500px;
+            perspective-origin: 50% 50%;
+        }
+
+        .book-3d-viewport {
+            transform-style: preserve-3d;
+            position: relative;
+            width: min(1200px, 94vw);
+            height: min(850px, 78vh);
+        }
+
+        /* BASE LEFT & RIGHT BACKGROUND PAGES */
+        .book-base-left, .book-base-right {
+            position: absolute;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            background-color: #1a1a1a;
+            border-radius: 10px 2px 2px 10px;
+            z-index: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .book-base-left { left: 0; }
+        .book-base-right { right: 0; border-radius: 2px 10px 10px 2px; }
+
+        /* FLIPPABLE LEAF STRUCTURE */
+        .book-page-3d {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transform-origin: left center;
+            transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+            border-radius: 2px 10px 10px 2px;
+        }
+
+        .page-face {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            padding: 0;
+            overflow: hidden;
+            border-radius: 2px 10px 10px 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #ffffff;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.1);
+        }
+
+        .page-face-back {
+            transform: rotateY(180deg);
+            border-radius: 10px 2px 2px 10px;
+        }
+
+        .page-img {
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            pointer-events: none;
+        }
+
+        .corner-fold {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 0 0 35px 35px;
+            border-color: transparent transparent rgba(0,0,0,0.3) transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            z-index: 20;
+        }
+        .book-page-3d:hover .corner-fold {
+            border-width: 0 0 50px 50px;
+            border-color: transparent transparent #d4af37 transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center relative">
+
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- Header -->
+    <header class="w-full max-w-7xl px-6 py-3 flex flex-col sm:flex-row justify-between items-center z-20 gap-4 border-b border-slate-700/50 bg-slate-900/60 backdrop-blur-md">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3 bg-white/95 p-2 rounded-xl shadow-lg border border-amber-400/40">
+                <img src="ust.png" alt="UST Logo" class="h-10 w-auto object-contain">
+                <div class="h-8 w-px bg-slate-300"></div>
+                <img src="cics.png" alt="CICS Logo" class="h-10 w-auto object-contain">
+            </div>
+            
+            <div>
+                <h1 class="text-lg sm:text-xl font-bold tracking-widest text-amber-100 font-serif" style="font-family: 'Cinzel', serif;">University of Santo Tomas</h1>
+                <p class="text-xs text-amber-400/90 font-mono font-semibold tracking-wide">College of Information and Computing Sciences</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 bg-slate-950/80 border border-amber-500/30 px-4 py-1.5 rounded-full backdrop-blur-md text-sm text-amber-200">
+            <button id="btn-sound-toggle" class="hover:text-amber-400 transition-colors flex items-center gap-2 px-2">
+                <i id="sound-icon" class="fa-solid fa-volume-high text-amber-400"></i>
+                <span class="text-xs font-mono">AUDIO</span>
+            </button>
+            <span class="text-amber-900">|</span>
+            <div class="text-xs font-mono text-amber-400/80 flex items-center gap-1">
+                <i class="fa-solid fa-hand-pointer text-amber-400"></i>
+                <span>CLICK BOOK TO READ</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Bookshelf View -->
+    <main id="bookshelf-view" class="w-full max-w-6xl px-4 py-8 flex-1 flex flex-col justify-center items-center z-20 relative shelf-container">
+        <div class="w-full max-w-4xl relative">
+            <div class="p-8 flex justify-around items-end min-h-[420px] relative">
+
+                <!-- BOOK 1 -->
+                <div onclick="app.openBook(0)" class="book-shelf-item flex flex-col items-center group">
+                    <div class="w-36 h-52 sm:w-44 sm:h-64 cover-grimoire rounded-r-md flex flex-col justify-between p-4 text-center relative transform group-hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]">
+                        <div class="absolute top-1 left-1 text-amber-600/70 text-xs"><i class="fa-solid fa-crown"></i></div>
+                        <div class="absolute top-1 right-1 text-amber-600/70 text-xs"><i class="fa-solid fa-crown"></i></div>
+                        
+                        <div class="my-auto space-y-2">
+                            <h3 class="text-amber-200 text-sm font-bold tracking-wider font-serif uppercase" style="font-family: 'MedievalSharp';">Via Lucis Station</h3>
+                            <div class="w-8 h-0.5 bg-amber-600/50 mx-auto"></div>
+                        </div>
+
+                        <div class="text-[10px] text-amber-500/70 font-mono">ANNO 1584</div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <span class="text-xs font-serif text-amber-300/80 group-hover:text-amber-200 transition-colors">Via Lucis Station</span>
+                        <div class="text-[10px] text-amber-500/50">By Carl</div>
+                    </div>
+                </div>
+
+                <!-- BOOK 2 -->
+                <div onclick="app.openBook(1)" class="book-shelf-item flex flex-col items-center group">
+                    <div class="w-36 h-52 sm:w-44 sm:h-64 cover-scifi rounded-r-md flex flex-col justify-between p-4 text-center relative group-hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]">
+                        <div class="cover-scifi-circuit"></div>
+                        
+                        <div class="my-auto space-y-2 z-10">
+                            <i class="fa-solid fa-microchip text-3xl text-cyan-400 animate-pulse"></i>
+                            <h3 class="text-cyan-200 text-sm font-bold tracking-widest font-mono uppercase" style="font-family: 'Orbitron';">CODEX v2.0</h3>
+                            <div class="w-10 h-0.5 bg-cyan-500/50 mx-auto"></div>
+                        </div>
+
+                        <div class="text-[10px] text-cyan-400/80 font-mono z-10">SYSTEM_MANUAL</div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <span class="text-xs font-mono text-cyan-300/80 group-hover:text-cyan-200 transition-colors">Hacking Manual</span>
+                        <div class="text-[10px] text-cyan-500/50">By Carl</div>
+                    </div>
+                </div>
+
+                <!-- BOOK 3 -->
+                <div onclick="app.openBook(2)" class="book-shelf-item flex flex-col items-center group">
+                    <div class="w-36 h-52 sm:w-44 sm:h-64 cover-royal gold-pattern rounded-r-md flex flex-col justify-between p-4 text-center relative group-hover:shadow-[0_0_30px_rgba(212,175,55,0.5)]">
+                        <div class="my-auto space-y-2">
+                            <h3 class="text-amber-100 text-sm font-extrabold tracking-wider font-serif uppercase" style="font-family: 'Cinzel';">Demo</h3>
+                            <div class="w-10 h-0.5 bg-amber-400/60 mx-auto"></div>
+                        </div>
+
+                        <div class="text-[10px] text-amber-300/80 font-serif italic">Demo</div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <span class="text-xs font-serif text-amber-300/80 group-hover:text-amber-200 transition-colors">Demo</span>
+                        <div class="text-[10px] text-amber-500/50">By Carl</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- 3D Book Modal -->
+    <div id="book-modal" class="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex flex-col justify-between items-center p-3 sm:p-5 opacity-0 pointer-events-none transition-opacity duration-500 modal-scene">
+        
+        <!-- Toolbar -->
+        <div class="w-full max-w-6xl flex justify-between items-center z-50">
+            <div class="flex items-center gap-3">
+                <span id="active-book-badge" class="px-3 py-1 rounded-full text-xs font-mono border border-amber-500/40 bg-amber-950/60 text-amber-300">
+                    Via Lucis Station
+                </span>
+            </div>
+
+            <button onclick="app.closeBook()" class="px-4 py-2 bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 rounded-full text-rose-200 text-xs font-mono transition-all flex items-center gap-2 shadow-lg hover:scale-105">
+                <i class="fa-solid fa-xmark text-sm"></i>
+                <span>PUT BACK ON SHELF</span>
+            </button>
+        </div>
+
+        <!-- 3D Book Viewport -->
+        <div class="my-auto relative flex items-center justify-center w-full">
+            <div id="book-3d-viewport" class="book-3d-viewport">
+                <!-- Base containers for structural stability -->
+                <div class="book-base-left"></div>
+                <div class="book-base-right"></div>
+                <!-- Dynamic leaves will be injected here -->
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="w-full max-w-md bg-black/80 border border-amber-500/30 rounded-full px-6 py-2.5 flex justify-between items-center z-50 backdrop-blur-md shadow-2xl">
+            <button id="btn-prev-page" onclick="app.prevPage()" class="p-2 text-amber-300 hover:text-amber-100 disabled:opacity-30 disabled:hover:text-amber-300 transition-colors">
+                <i class="fa-solid fa-arrow-left text-lg"></i>
+            </button>
+
+            <span id="modal-page-indicator" class="text-xs font-mono text-amber-200 font-bold tracking-widest">
+                PAGE 1 / 12
+            </span>
+
+            <button id="btn-next-page" onclick="app.nextPage()" class="p-2 text-amber-300 hover:text-amber-100 disabled:opacity-30 disabled:hover:text-amber-300 transition-colors">
+                <i class="fa-solid fa-arrow-right text-lg"></i>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full py-3 text-center text-xs text-slate-400 font-mono z-20 bg-slate-950/80 border-t border-slate-800">
+        University of Santo Tomas • CICS Interactive E-Book Archive
+    </footer>
+
+    <script>
+        // LEAF DATA CONFIGURATION:
+        // Leaf 1: Front = 1.png, Back = 2.png
+        // Leaf 2: Front = 3.png, Back = 4.png
+        // Leaf 3: Front = 5.png, Back = 6.png
+        // Leaf 4: Front = 7.png, Back = 8.png
+        // Leaf 5: Front = 9.png, Back = 10.png
+        // Leaf 6: Front = 11.png, Back = 12.png
+        const BOOKS_DATA = [
+            {
+                id: "via-lucis",
+                title: "Via Lucis Station",
+                subtitle: "Catholic Book",
+                leaves: [
+                    { front: "images/VIA LUCIS STATION/1.png", back: "images/VIA LUCIS STATION/2.png" },
+                    { front: "images/VIA LUCIS STATION/3.png", back: "images/VIA LUCIS STATION/4.png" },
+                    { front: "images/VIA LUCIS STATION/5.png", back: "images/VIA LUCIS STATION/6.png" },
+                    { front: "images/VIA LUCIS STATION/7.png", back: "images/VIA LUCIS STATION/8.png" },
+                    { front: "images/VIA LUCIS STATION/9.png", back: "images/VIA LUCIS STATION/10.png" },
+                    { front: "images/VIA LUCIS STATION/11.png", back: "images/VIA LUCIS STATION/12.png" }
+                ]
+            },
+            {
+                id: "scifi",
+                title: "Hacking Manual",
+                subtitle: "Sci-Fi Cybernetic Manual",
+                leaves: [
+                    { front: "images/VIA LUCIS STATION/1.png", back: "images/VIA LUCIS STATION/2.png" },
+                    { front: "images/VIA LUCIS STATION/3.png", back: "images/VIA LUCIS STATION/4.png" },
+                    { front: "images/VIA LUCIS STATION/5.png", back: "images/VIA LUCIS STATION/6.png" }
+                ]
+            },
+            {
+                id: "royal",
+                title: "Demo Book",
+                subtitle: "Classic Leather Tome",
+                leaves: [
+                    { front: "images/VIA LUCIS STATION/1.png", back: "images/VIA LUCIS STATION/2.png" },
+                    { front: "images/VIA LUCIS STATION/3.png", back: "images/VIA LUCIS STATION/4.png" },
+                    { front: "images/VIA LUCIS STATION/5.png", back: "images/VIA LUCIS STATION/6.png" }
+                ]
+            }
+        ];
+
+        class WebAudioFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            playPageFlip() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.3;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(900, now);
+                filter.frequency.exponentialRampToValueAtTime(300, now + 0.28);
+                filter.Q.value = 2;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start(now);
+                noise.stop(now + 0.3);
+            }
+
+            playBookPickup() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(35, now + 0.25);
+
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        }
+
+        class BookshelfApp {
+            constructor() {
+                this.audio = new WebAudioFX();
+                this.currentBookIndex = 0;
+                this.currentLeafIndex = 0; // Index of the leaf currently being flipped
+                this.totalLeaves = 0;
+
+                this.bookModal = document.getElementById('book-modal');
+                this.viewport = document.getElementById('book-3d-viewport');
+                this.badge = document.getElementById('active-book-badge');
+                this.pageIndicator = document.getElementById('modal-page-indicator');
+                this.btnPrev = document.getElementById('btn-prev-page');
+                this.btnNext = document.getElementById('btn-next-page');
+
+                this.initParticles();
+                this.attachListeners();
+            }
+
+            initParticles() {
+                const canvas = document.getElementById('particles-canvas');
+                const ctx = canvas.getContext('2d');
+                let width = canvas.width = window.innerWidth;
+                let height = canvas.height = window.innerHeight;
+
+                window.addEventListener('resize', () => {
+                    width = canvas.width = window.innerWidth;
+                    height = canvas.height = window.innerHeight;
+                });
+
+                const particles = Array.from({ length: 30 }, () => ({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    radius: Math.random() * 1.2 + 0.5,
+                    alpha: Math.random() * 0.4 + 0.1,
+                    speedY: -Math.random() * 0.2 - 0.05
+                }));
+
+                function render() {
+                    ctx.clearRect(0, 0, width, height);
+                    particles.forEach(p => {
+                        p.y += p.speedY;
+                        if (p.y < 0) p.y = height;
+
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(212, 175, 55, ${p.alpha})`;
+                        ctx.fill();
+                    });
+                    requestAnimationFrame(render);
+                }
+                render();
+            }
+
+            attachListeners() {
+                document.getElementById('btn-sound-toggle').addEventListener('click', () => {
+                    this.audio.enabled = !this.audio.enabled;
+                    document.getElementById('sound-icon').className = this.audio.enabled 
+                        ? "fa-solid fa-volume-high text-amber-400" 
+                        : "fa-solid fa-volume-xmark text-rose-400";
+                });
+
+                window.addEventListener('keydown', (e) => {
+                    if (this.bookModal.classList.contains('opacity-0')) return;
+                    if (e.key === 'ArrowRight') this.nextPage();
+                    if (e.key === 'ArrowLeft') this.prevPage();
+                    if (e.key === 'Escape') this.closeBook();
+                });
+            }
+
+            openBook(index) {
+                this.currentBookIndex = index;
+                this.currentLeafIndex = 0;
+                const book = BOOKS_DATA[index];
+
+                this.audio.playBookPickup();
+                this.badge.textContent = book.title;
+
+                this.renderBookPages(book);
+
+                this.bookModal.classList.remove('opacity-0', 'pointer-events-none');
+                this.updateUI();
+            }
+
+            renderBookPages(book) {
+                // Keep base containers, remove old dynamic leaves
+                const dynamicLeaves = this.viewport.querySelectorAll('.book-page-3d');
+                dynamicLeaves.forEach(el => el.remove());
+
+                this.totalLeaves = book.leaves.length;
+
+                book.leaves.forEach((leaf, idx) => {
+                    const leafNum = idx + 1;
+                    const pageEl = document.createElement('div');
+                    pageEl.className = 'book-page-3d';
+                    pageEl.id = `leaf-${leafNum}`;
+                    
+                    // Stacking Order: First leaf on top (highest Z-index)
+                    pageEl.style.zIndex = `${50 - leafNum}`;
+
+                    pageEl.innerHTML = `
+                        <!-- Front Side (Shows when leaf is resting on the right) -->
+                        <div class="page-face">
+                            <img src="${leaf.front}" alt="Page ${(leafNum * 2) - 1}" class="page-img">
+                            <div class="corner-fold" title="Flip Page"></div>
+                        </div>
+
+                        <!-- Back Side (Shows when leaf is flipped to the left) -->
+                        <div class="page-face page-face-back">
+                            <img src="${leaf.back}" alt="Page ${leafNum * 2}" class="page-img">
+                        </div>
+                    `;
+
+                    pageEl.addEventListener('click', (e) => {
+                        if (e.target.closest('button')) return;
+                        if (this.currentLeafIndex < leafNum) {
+                            this.nextPage();
+                        } else {
+                            this.prevPage();
+                        }
+                    });
+
+                    this.viewport.appendChild(pageEl);
+                });
+            }
+
+            nextPage() {
+                if (this.currentLeafIndex < this.totalLeaves) {
+                    this.currentLeafIndex++;
+                    const leafEl = document.getElementById(`leaf-${this.currentLeafIndex}`);
+                    if (leafEl) {
+                        leafEl.style.transform = "rotateY(-180deg)";
+                        // Bring flipped leaf above left stack
+                        leafEl.style.zIndex = `${50 + this.currentLeafIndex}`;
+                        this.audio.playPageFlip();
+                    }
+                    this.updateUI();
+                }
+            }
+
+            prevPage() {
+                if (this.currentLeafIndex > 0) {
+                    const leafEl = document.getElementById(`leaf-${this.currentLeafIndex}`);
+                    if (leafEl) {
+                        leafEl.style.transform = "rotateY(0deg)";
+                        // Restore original right stack z-index
+                        leafEl.style.zIndex = `${50 - this.currentLeafIndex}`;
+                        this.audio.playPageFlip();
+                    }
+                    this.currentLeafIndex--;
+                    this.updateUI();
+                }
+            }
+
+            closeBook() {
+                this.audio.playBookPickup();
+                
+                for (let i = this.totalLeaves; i >= 1; i--) {
+                    const leafEl = document.getElementById(`leaf-${i}`);
+                    if (leafEl) {
+                        leafEl.style.transform = "rotateY(0deg)";
+                        leafEl.style.zIndex = `${50 - i}`;
+                    }
+                }
+                this.currentLeafIndex = 0;
+
+                setTimeout(() => {
+                    this.bookModal.classList.add('opacity-0', 'pointer-events-none');
+                }, 300);
+            }
+
+            updateUI() {
+                const totalPages = this.totalLeaves * 2;
+                let currentPage = 1;
+
+                if (this.currentLeafIndex > 0) {
+                    currentPage = this.currentLeafIndex * 2;
+                }
+
+                this.pageIndicator.textContent = `PAGE ${currentPage} / ${totalPages}`;
+
+                this.btnPrev.disabled = this.currentLeafIndex === 0;
+                this.btnNext.disabled = this.currentLeafIndex === this.totalLeaves;
+            }
+        }
+
+        window.onload = () => {
+            window.app = new BookshelfApp();
+        };
+    </script>
+</body>
+</html>
